@@ -7,6 +7,7 @@ var Users = require.main.require('./src/user'),
 	errorHandler = require('../../lib/errorHandler'),
 	auth = require('../../lib/auth'),
 	utils = require('./utils'),
+	notifications = require.main.require('./src/notifications'),
 	async = require.main.require('async');
 
 
@@ -69,9 +70,37 @@ module.exports = function(/*middleware*/) {
 	});
 
 	app.put('/:uid/follow', apiMiddleware.requireUser, function(req, res) {
-		Users.follow(req.user.uid, req.params.uid, function(err) {
-			return errorHandler.handle(err, res);
+		var userData;
+
+		async.waterfall([
+			function (next) {
+				Users.follow(req.user.uid, req.params.uid, next);
+			},
+			function (next) {
+				Users.getUserFields(req.user.uid, ['username', 'userslug'], next);
+			},
+			function (_userData, next) {
+				userData = _userData;
+				notifications.create({
+					type: 'follow',
+					bodyShort: '[[notifications:user_started_following_you, ' + userData.username + ']]',
+					nid: 'follow:' + req.params.uid + ':uid:' + req.user.uid,
+					from: req.user.uid,
+					path: '/uid/' + req.params.uid + '/followers',
+					mergeId: 'notifications:user_started_following_you',
+				}, next);
+			},
+			function (notification, next) {
+				if (!notification) {
+					return next();
+				}
+				notification.user = userData;
+				notifications.push(notification, [req.params.uid], next);
+			},
+		], function(err){
+			return errorHandler.handle(err, res)
 		});
+
 	});
 
 	app.delete('/:uid/follow', apiMiddleware.requireUser, function(req, res) {
