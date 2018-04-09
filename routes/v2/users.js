@@ -202,5 +202,39 @@ module.exports = function(/*middleware*/) {
       });
     });
 
+  app.post('/:uid/notifications', apiMiddleware.requireUser, function(req, res) {
+		var userData;
+
+		async.waterfall([
+			function (next) {
+				Users.getUserFields(req.user.uid, ['username', 'userslug'], next);
+			},
+			function (_userData, next) {
+        var type=req.body.type, message=req.body.message, args=req.body.args, url=req.body.url, nid=req.body.nid;
+
+        userData = _userData;
+
+				notifications.create({
+					type: type,
+					bodyShort: '[[' + message + ', ' + args.join(',') + ']]',
+					nid: [type, nid, req.params.uid, 'uid', req.user.uid].join(':'),
+					from: req.user.uid,
+					path: url,
+					mergeId: message,
+				}, next);
+			},
+			function (notification, next) {
+				if (!notification) {
+					return next();
+				}
+				notification.user = userData;
+				notifications.push(notification, [req.params.uid], next);
+			},
+		], function(err){
+			return errorHandler.handle(err, res)
+		});
+
+	});
+
 	return app;
 };
