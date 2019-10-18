@@ -210,18 +210,24 @@ module.exports = function(/*middleware*/) {
 				Users.getUserFields(req.user.uid, ['username', 'userslug'], next);
 			},
 			function (_userData, next) {
-        var type=req.body.type, message=req.body.message, args=req.body.args, url=req.body.url, nid=req.body.nid;
+        var type=req.body.type, message=req.body.message, args=req.body.args, url=req.body.url, nid=req.body.nid,
+					mergeId=req.body.mergeId, topicTitle=req.body.topicTitle;
 
         userData = _userData;
 
-				notifications.create({
+        var data = {
 					type: type,
 					bodyShort: '[[' + message + ', ' + args.join(',') + ']]',
 					nid: [type, nid, req.params.uid, 'uid', req.user.uid].join(':'),
 					from: req.user.uid,
 					path: url,
-					mergeId: message,
-				}, next);
+					mergeId: mergeId || message,
+				};
+
+				if (req.body.topicTitle) {
+					data.topicTitle = req.body.topicTitle;
+				}
+				notifications.create(data, next);
 			},
 			function (notification, next) {
 				if (!notification) {
